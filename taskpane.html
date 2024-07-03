@@ -11,8 +11,11 @@
     <p>This add-in will insert the text 'Hello world!' in a new message.</p>
     <button id="helloButton">Say hello</button>
 
-    <p>Test cross origin</p>
-    <button id="loadButton">Load something</button>
+    <p>getDatadata from cross origin</p>
+    <button id="loadButton">Load data</button>
+
+    <p>Post data to cross origin</p>
+    <button id="pushButton">Push data</button>
 
 </body>
 
@@ -21,7 +24,24 @@
     Office.onReady((info) => {
         if (info.host === Office.HostType.Outlook) {
             document.getElementById("helloButton").onclick = sayHello;
-            document.getElementById("loadButton").onclick = callAPI;
+            document.getElementById("loadButton").onclick = getData(1);
+            let user = {
+                "id": 1,
+                "name": "Leanne Graham",
+                "username": "Bret",
+                "email": "Sincere@april.biz",
+                "address": {
+                    "street": "Kulas Light",
+                    "suite": "Apt. 556",
+                    "city": "Gwenborough",
+                    "zipcode": "92998-3874",
+                    "geo": {
+                        "lat": "-37.3159",
+                        "lng": "81.1496"
+                    }
+                }
+            }
+            document.getElementById("pushButton").onclick = postData(user);
         }
     });
 
@@ -46,35 +66,156 @@
     }
 
 
-    function callAPI() {
 
-        fetch('https://jsonplaceholder.typicode.com/todos/1', {
-            method: 'GET',
-            mode: 'cors',
-            credentials: 'include'
-        })
-            .then(response => response.json())
-            .then(json => console.log(json))
-            .then(function (reponse) {
-                Office.context.mailbox.item.body.setAsync(
-                    response.json(),
-                    {
-                        coercionType: "html", // Write text as HTML
-                    },
+    function getData(postId) {
+        console.log("I am in in callAPI func ");
 
-                    // Callback method to check that setAsync succeeded
-                    function (asyncResult) {
-                        if (asyncResult.status ==
-                            Office.AsyncResultStatus.Failed) {
-                            write(asyncResult.error.message);
-                        }
+        // Example usage
+        const apiUrl = 'https://jsonplaceholder.typicode.com/posts/' + postId;
+
+        jsonpRequest(apiUrl, function (response) {
+            console.log('Received data:', response);
+            const myJSON = JSON.stringify(response);
+
+            // Process the received data here
+
+            Office.context.mailbox.item.body.setAsync(
+                myJSON,
+                {
+                    coercionType: "html", // Write text as HTML
+                },
+
+                // Callback method to check that setAsync succeeded
+                function (asyncResult) {
+                    if (asyncResult.status ==
+                        Office.AsyncResultStatus.Failed) {
+                        write(asyncResult.error.message);
                     }
-                );
+                }
+            );
 
-            })
-            .catch(error => console.error('CORS error:', error));
+        });
+
     }
 
+
+    function postData(objData) {
+        // Example usage
+        const apiUrl = 'https://jsonplaceholder.typicode.com/users';
+        const postData = JSON.stringify(objData);
+
+        jsonpPost(apiUrl, postData, function (response) {
+            console.log('Post data:', response);
+            // Process the received data here
+            const myJSON = JSON.stringify(response);
+
+            // Process the received data here
+
+            Office.context.mailbox.item.body.setAsync(
+                myJSON,
+                {
+                    coercionType: "html", // Write text as HTML
+                },
+
+                // Callback method to check that setAsync succeeded
+                function (asyncResult) {
+                    if (asyncResult.status ==
+                        Office.AsyncResultStatus.Failed) {
+                        write(asyncResult.error.message);
+                    }
+                }
+            );
+        });
+
+    }
+    // Function to create and append the script tag
+    function jsonpRequest(url, callback) {
+        // Generate a unique callback name
+        const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
+
+        // Create the script element
+        const script = document.createElement('script');
+        script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'callback=' + callbackName;
+
+        // Define the callback function
+        window[callbackName] = function (data) {
+            // Clean up: remove the script tag and delete the global callback function
+            document.body.removeChild(script);
+            delete window[callbackName];
+
+            // Call the provided callback function with the received data
+            callback(data);
+        };
+
+        // Append the script tag to the document body
+        document.body.appendChild(script);
+    }
+
+
+
+
+
+
+    function jsonpPost(url, data, callback) {
+        // Generate a unique callback name
+        const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
+
+        // Encode the data as URL parameters
+        const params = Object.keys(data).map(key =>
+            encodeURIComponent(key) + '=' + encodeURIComponent(data[key])
+        ).join('&');
+
+        // Create the script element
+        const script = document.createElement('script');
+        script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + params + '&callback=' + callbackName;
+
+        // Define the callback function
+        window[callbackName] = function (response) {
+            // Clean up: remove the script tag and delete the global callback function
+            document.body.removeChild(script);
+            delete window[callbackName];
+
+            // Call the provided callback function with the received data
+            callback(response);
+        };
+
+        // Append the script tag to the document body
+        document.body.appendChild(script);
+    }
+
+
+
+    /*
+    
+    function jsonpRequest(url, data, callback) {
+      const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
+      
+      // Encode data as URL parameters
+      const params = Object.entries(data)
+        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+        .join('&');
+    
+      const script = document.createElement('script');
+      script.src = `${url}${url.includes('?') ? '&' : '?'}${params}&callback=${callbackName}`;
+    
+      window[callbackName] = function(response) {
+        document.body.removeChild(script);
+        delete window[callbackName];
+        callback(response);
+      };
+    
+      document.body.appendChild(script);
+    }
+    
+    // Usage
+    jsonpRequest('https://api.example.com/data', 
+      { api_key: 'your_api_key', other_param: 'value' }, 
+      function(response) {
+        console.log('Received data:', response);
+      }
+    );
+    
+    */
 </script>
 
 </html>
